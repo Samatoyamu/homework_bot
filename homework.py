@@ -105,7 +105,6 @@ def main():
             send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
-            continue
 
 
 if __name__ == '__main__':
