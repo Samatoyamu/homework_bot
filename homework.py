@@ -35,8 +35,7 @@ logger.addHandler(handler)
 
 def check_tokens():
     """Проверка доступности переменных окружения."""
-    tokens = (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
-    return all(tokens)
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def send_message(bot, message):
@@ -55,35 +54,34 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT,
                                 headers=HEADERS,
                                 params={'from_date': timestamp})
+        if response.status_code != HTTPStatus.OK:
+            raise ConnectionError(f'Ошибка соединения {response.status_code}')
+        return response.json()
+    except requests.exceptions.JSONDecodeError as error:
+        logging.error(f'Ошибка получения json: {error}')
     except requests.exceptions.RequestException as error:
         logging.error(f'Ошибка при запросе к основному API: {error}')
-    if response.status_code != HTTPStatus.OK:
-        raise ConnectionError(
-            f'Ошибка соединения {response.status_code}')
-    try:
-        return response.json()
-    except requests.exceptions.InvalidJSONError as error:
-        logging.error(f'Ошибка получения json: {error}')
 
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
-    if isinstance(response, list):
-        raise TypeError('Получен неправильный тип данных - ожидаемый (list)')
-    elif isinstance(response.get('homeworks'), dict):
+    if not isinstance(response, dict):
         raise TypeError('Получен неправильный тип данных - ожидаемый (dict)')
-    elif 'homeworks' not in response:
-        raise KeyError("Отсутствует ключ 'homeworks' с домашками")
+    elif not isinstance(response.get('homeworks'), list):
+        raise TypeError('Получен неправильный тип данных - ожидаемый (list)')
     elif 'current_date' not in response:
-        raise KeyError("API не вернуло текущую дату")
+        logging.error('В ответе API отсутствует дата ответа')
+        raise KeyError("API не вернуло дату ответа")
+    elif not isinstance(response.get('current_date'), int):
+        raise TypeError("Дата ответа имеет неправильный тип")
     return response.get('homeworks')
 
 
 def parse_status(homework):
     """Извлекает статусы домашней работы."""
     if homework.get('status') not in HOMEWORK_VERDICTS.keys():
-        raise NameError("Неизвестный статус домашней работы - "
-                        f"{homework.get('status')}")
+        raise ValueError("Неизвестный статус домашней работы - "
+                         f"{homework.get('status')}")
     if 'homework_name' not in homework:
         raise KeyError('Нету имени домашней работы')
     homework_name = homework.get('homework_name')
@@ -99,7 +97,10 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     while True:
         try:
-            timestamp = get_api_answer(int(time.time())).get('current_date')
+            timestamp = (requests.get(ENDPOINT,
+                                      headers=HEADERS,
+                                      params={'from_date': int(time.time())})
+                                 .json().get('current_date'))
             response = get_api_answer(timestamp)
             gethomework = check_response(response)
             if 'homework_name' in gethomework[0]:
