@@ -57,10 +57,10 @@ def get_api_answer(timestamp):
         if response.status_code != HTTPStatus.OK:
             raise ConnectionError(f'Ошибка соединения {response.status_code}')
         return response.json()
-    except requests.exceptions.JSONDecodeError as error:
-        logging.error(f'Ошибка получения json: {error}')
+    except (requests.exceptions.InvalidJSONError, TypeError) as error:
+        print(f'Ошибка получения json: {error}')
     except requests.exceptions.RequestException as error:
-        logging.error(f'Ошибка при запросе к основному API: {error}')
+        print(f'Ошибка при запросе к основному API: {error}')
 
 
 def check_response(response):
@@ -70,10 +70,9 @@ def check_response(response):
     elif not isinstance(response.get('homeworks'), list):
         raise TypeError('Получен неправильный тип данных - ожидаемый (list)')
     elif 'current_date' not in response:
-        logging.error('В ответе API отсутствует дата ответа')
-        raise KeyError("API не вернуло дату ответа")
+        print('В ответе API отсутствует дата ответа')
     elif not isinstance(response.get('current_date'), int):
-        raise TypeError("Дата ответа имеет неправильный тип")
+        print("Дата ответа имеет неправильный тип")
     return response.get('homeworks')
 
 
@@ -95,21 +94,22 @@ def main():
         logging.critical('Отсутствуют переменные окружения')
         raise ValueError('Добавьте переменные окружения')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
     while True:
         try:
-            timestamp = (requests.get(ENDPOINT,
-                                      headers=HEADERS,
-                                      params={'from_date': int(time.time())})
-                                 .json().get('current_date'))
             response = get_api_answer(timestamp)
             gethomework = check_response(response)
+            timestamp = (requests.get(ENDPOINT,
+                                      headers=HEADERS,
+                                      params={'from_date': 0})
+                                 .json().get('current_date'))
             if 'homework_name' in gethomework[0]:
                 message = parse_status(gethomework[0])
                 send_message(bot, message)
         except Exception as error:
+            logging.error(f'Произошла ошибка: {error}')
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
-            logging.error(f'Ошибка при запросе к основному API: {error}')
         finally:
             time.sleep(RETRY_PERIOD)
 
