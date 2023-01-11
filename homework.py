@@ -57,22 +57,22 @@ def get_api_answer(timestamp):
         if response.status_code != HTTPStatus.OK:
             raise ConnectionError(f'Ошибка соединения {response.status_code}')
         return response.json()
-    except (requests.exceptions.InvalidJSONError, TypeError) as error:
-        print(f'Ошибка получения json: {error}')
     except requests.exceptions.RequestException as error:
-        print(f'Ошибка при запросе к основному API: {error}')
+        raise error(f'Ошибка при запросе к основному API: {error}')
 
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
+    if 'homeworks' not in response:
+        logging.error("Ключ 'homeworks' не найден")
     if not isinstance(response, dict):
         raise TypeError('Получен неправильный тип данных - ожидаемый (dict)')
     elif not isinstance(response.get('homeworks'), list):
         raise TypeError('Получен неправильный тип данных - ожидаемый (list)')
     elif 'current_date' not in response:
-        print('В ответе API отсутствует дата ответа')
+        raise KeyError('В ответе API отсутствует дата ответа')
     elif not isinstance(response.get('current_date'), int):
-        print("Дата ответа имеет неправильный тип")
+        raise TypeError("Дата ответа имеет неправильный тип")
     return response.get('homeworks')
 
 
@@ -99,11 +99,8 @@ def main():
         try:
             response = get_api_answer(timestamp)
             gethomework = check_response(response)
-            timestamp = (requests.get(ENDPOINT,
-                                      headers=HEADERS,
-                                      params={'from_date': 0})
-                                 .json().get('current_date'))
-            if 'homework_name' in gethomework[0]:
+            timestamp = response.get('current_date')
+            if gethomework[0]:
                 message = parse_status(gethomework[0])
                 send_message(bot, message)
         except Exception as error:
