@@ -9,6 +9,8 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
+import exceptions
+
 load_dotenv()
 
 PRACTICUM_TOKEN = os.getenv('PRAC_TOKEN')
@@ -59,23 +61,26 @@ def get_api_answer(timestamp):
             raise ConnectionError(f'Ошибка соединения {response.status_code}')
         return response.json()
     except requests.exceptions.RequestException as error:
-        logging.debug(f'Ошибка при запросе к основному API: {error}')
+        raise exceptions.RequestError(f'Ошибка при запросе к основному API: '
+                                      f'{error}')
     except json.JSONDecodeError as error:
-        logging.debug(f'Ошибка получения json: {error}')
+        raise exceptions.JSONError(f'Ошибка получения json: {error}')
 
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
-    if 'homeworks' not in response:
-        logging.debug("Ключ 'homeworks' не найден")
     if not isinstance(response, dict):
         raise TypeError('Получен неправильный тип данных - ожидаемый (dict)')
     elif not isinstance(response.get('homeworks'), list):
         raise TypeError('Получен неправильный тип данных - ожидаемый (list)')
+    elif 'homeworks' not in response:
+        raise KeyError("Ключ 'homeworks' не найден")
     elif 'current_date' not in response:
-        logging.debug('В ответе API отсутствует дата ответа')
+        raise exceptions.CurrentDateKeyError('''В ответе API отсутствует
+                                             дата ответа''')
     elif not isinstance(response.get('current_date'), int):
-        logging.debug("Дата ответа имеет неправильный тип")
+        raise exceptions.CurrentDateNotint('''Дата ответа имеет
+                                           неправильный тип''')
     return response.get('homeworks')
 
 
@@ -106,9 +111,13 @@ def main():
             if len(gethomework) > 0:
                 message = parse_status(gethomework[0])
                 send_message(bot, message)
+        except exceptions.CurrentDateKeyError:
+            logging.error('Ошибка получения даты ответа сервера')
+        except exceptions.CurrentDateNotint:
+            logging.error('Сервер вернул дату ответа в неверном формате')
         except Exception as error:
             logging.error(f'Произошла ошибка: {error}')
-            message = f'Сбой в работе программы: {error}'
+            message = f'Сбой в работе бота: {error}'
             send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
