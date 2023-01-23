@@ -79,8 +79,8 @@ def check_response(response):
         raise exceptions.CurrentDateKeyError('''В ответе API отсутствует
                                              дата ответа''')
     elif not isinstance(response.get('current_date'), int):
-        raise exceptions.CurrentDateNotint('''Дата ответа имеет
-                                           неправильный тип''')
+        raise exceptions.CurrentDateNotIntError('''Дата ответа имеет
+                                                неправильный тип''')
     return response.get('homeworks')
 
 
@@ -111,10 +111,9 @@ def main():
             if len(gethomework) > 0:
                 message = parse_status(gethomework[0])
                 send_message(bot, message)
-        except exceptions.CurrentDateKeyError:
-            logging.error('Ошибка получения даты ответа сервера')
-        except exceptions.CurrentDateNotint:
-            logging.error('Сервер вернул дату ответа в неверном формате')
+        except (exceptions.CurrentDateKeyError,
+                exceptions.CurrentDateNotIntError):
+            logging.error('Ошибка получения формата ответа сервера')
         except Exception as error:
             logging.error(f'Произошла ошибка: {error}')
             message = f'Сбой в работе бота: {error}'

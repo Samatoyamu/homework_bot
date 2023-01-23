@@ -16,7 +16,7 @@ class CurrentDateKeyError(Exception):
     pass
 
 
-class CurrentDateNotint(Exception):
+class CurrentDateNotIntError(Exception):
     """Дата ответа имеет неправильный тип."""
 
     pass
